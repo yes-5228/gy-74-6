@@ -1,17 +1,15 @@
 from datetime import datetime, timedelta
 
 from fastapi import HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
-from app.models.salon import Appointment, CarePackage, Customer, PackageItem, ServiceItem, TreatmentPlan
+from app.models.salon import Appointment, CarePackage, PackageItem, ServiceItem, TreatmentPlan
 from app.schemas.salon import (
     AppointmentCreate,
     AppointmentUpdate,
     CarePackageCreate,
     CarePackageUpdate,
-    CustomerCreate,
-    CustomerUpdate,
     ServiceItemCreate,
     ServiceItemUpdate,
     TreatmentPlanCreate,
@@ -34,106 +32,10 @@ def _apply_updates(record, payload):
 
 
 def serialize_treatment_plan(plan: TreatmentPlan) -> dict:
-    now = datetime.utcnow()
-    status = plan.status
-    if status == "active" and plan.expires_at <= now:
-        status = "expired"
     return {
         **plan.__dict__,
-        "status": status,
         "sessions_remaining": max(plan.sessions_total - plan.sessions_used, 0),
     }
-
-
-def list_customers(db: Session) -> list[Customer]:
-    return list(db.scalars(select(Customer).order_by(Customer.id.desc())))
-
-
-def create_customer(db: Session, payload: CustomerCreate) -> Customer:
-    existing = db.scalar(select(Customer).where(Customer.phone == payload.phone))
-    if existing:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="该手机号已存在客户档案",
-        )
-    customer = Customer(**payload.model_dump())
-    db.add(customer)
-    db.commit()
-    db.refresh(customer)
-    return customer
-
-
-def get_customer(db: Session, customer_id: int) -> Customer:
-    customer = _get_or_404(db, Customer, customer_id)
-    return customer
-
-
-def get_customer_detail(db: Session, customer_id: int) -> dict:
-    stmt = (
-        select(Customer)
-        .where(Customer.id == customer_id)
-        .options(
-            selectinload(Customer.treatment_plans)
-            .options(
-                selectinload(TreatmentPlan.package)
-                .selectinload(CarePackage.items)
-                .selectinload(PackageItem.service_item),
-                selectinload(TreatmentPlan.appointments),
-            ),
-            selectinload(Customer.appointments).selectinload(Appointment.service_item),
-        )
-    )
-    customer = db.scalar(stmt)
-    if not customer:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Customer not found")
-
-    now = datetime.utcnow()
-    plans = [serialize_treatment_plan(p) for p in customer.treatment_plans]
-    active_plans = [p for p in plans if p["status"] == "active"]
-    active_plans_count = len(active_plans)
-
-    upcoming_appointments = [a for a in customer.appointments if a.scheduled_at >= now and a.status == "booked"]
-    upcoming_appointments_count = len(upcoming_appointments)
-
-    risk_level = "normal"
-    for plan in active_plans:
-        days_left = (plan["expires_at"].date() - now.date()).days
-        remaining = plan["sessions_remaining"]
-        if days_left < 7 or remaining <= 1:
-            risk_level = "high"
-            break
-        elif days_left < 14 or remaining <= 2:
-            risk_level = "medium"
-
-    return {
-        **customer.__dict__,
-        "treatment_plans": plans,
-        "appointments": customer.appointments,
-        "active_plans_count": active_plans_count,
-        "upcoming_appointments_count": upcoming_appointments_count,
-        "risk_level": risk_level,
-    }
-
-
-def update_customer(db: Session, customer_id: int, payload: CustomerUpdate) -> Customer:
-    customer = _get_or_404(db, Customer, customer_id)
-    if payload.phone and payload.phone != customer.phone:
-        existing = db.scalar(select(Customer).where(Customer.phone == payload.phone))
-        if existing:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="该手机号已存在客户档案",
-            )
-    _apply_updates(customer, payload)
-    db.commit()
-    db.refresh(customer)
-    return customer
-
-
-def delete_customer(db: Session, customer_id: int) -> None:
-    customer = _get_or_404(db, Customer, customer_id)
-    db.delete(customer)
-    db.commit()
 
 
 def list_service_items(db: Session) -> list[ServiceItem]:
@@ -164,7 +66,17 @@ def delete_service_item(db: Session, item_id: int) -> None:
 
 def list_packages(db: Session) -> list[CarePackage]:
     stmt = select(CarePackage).options(selectinload(CarePackage.items).selectinload(PackageItem.service_item))
-    return list(db.scalars(stmt.order_by(CarePackage.id)))
+    packages = list(db.scalars(stmt.order_by(CarePackage.id)))
+    purchase_counts = dict(
+        db.query(TreatmentPlan.package_id, func.count(TreatmentPlan.id))
+        .group_by(TreatmentPlan.package_id)
+        .all()
+    )
+    result = []
+    for pkg in packages:
+        pkg.has_purchases = purchase_counts.get(pkg.id, 0) > 0
+        result.append(pkg)
+    return result
 
 
 def create_package(db: Session, payload: CarePackageCreate) -> CarePackage:
@@ -185,11 +97,22 @@ def get_package(db: Session, package_id: int) -> CarePackage:
     package = db.scalar(stmt)
     if not package:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Package not found")
+    purchase_count = db.scalar(
+        select(func.count(TreatmentPlan.id)).where(TreatmentPlan.package_id == package_id)
+    )
+    package.has_purchases = purchase_count > 0
     return package
 
 
 def update_package(db: Session, package_id: int, payload: CarePackageUpdate) -> CarePackage:
-    package = get_package(db, package_id)
+    stmt = (
+        select(CarePackage)
+        .where(CarePackage.id == package_id)
+        .options(selectinload(CarePackage.items).selectinload(PackageItem.service_item))
+    )
+    package = db.scalar(stmt)
+    if not package:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Package not found")
     values = payload.model_dump(exclude_unset=True, exclude={"items"})
     for field, value in values.items():
         setattr(package, field, value)
@@ -200,7 +123,18 @@ def update_package(db: Session, package_id: int, payload: CarePackageUpdate) -> 
 
 
 def delete_package(db: Session, package_id: int) -> None:
-    package = get_package(db, package_id)
+    stmt = select(CarePackage).where(CarePackage.id == package_id)
+    package = db.scalar(stmt)
+    if not package:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Package not found")
+    purchase_count = db.scalar(
+        select(func.count(TreatmentPlan.id)).where(TreatmentPlan.package_id == package_id)
+    )
+    if purchase_count > 0:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="该套餐已被客户购买，无法删除。可停用套餐以阻止新购，历史疗程卡仍可继续核销。",
+        )
     db.delete(package)
     db.commit()
 
@@ -219,12 +153,17 @@ def list_treatment_plans(db: Session) -> list[dict]:
 
 
 def create_treatment_plan(db: Session, payload: TreatmentPlanCreate) -> dict:
-    customer = _get_or_404(db, Customer, payload.customer_id)
+    package = db.get(CarePackage, payload.package_id)
+    if not package:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Package not found")
+    if package.status != "active":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="该套餐已停用，无法新购。历史疗程卡仍可继续核销。",
+        )
     data = payload.model_dump()
     if data["purchased_at"] is None:
         data["purchased_at"] = datetime.utcnow()
-    data["customer_name"] = customer.name
-    data["customer_phone"] = customer.phone
     plan = TreatmentPlan(**data)
     db.add(plan)
     db.commit()
@@ -274,19 +213,10 @@ def list_appointments(db: Session) -> list[Appointment]:
 
 
 def create_appointment(db: Session, payload: AppointmentCreate) -> Appointment:
-    customer = _get_or_404(db, Customer, payload.customer_id)
     _get_or_404(db, ServiceItem, payload.service_item_id)
     if payload.treatment_plan_id is not None:
-        plan = _get_or_404(db, TreatmentPlan, payload.treatment_plan_id)
-        if plan.customer_id != payload.customer_id:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="疗程卡不属于该客户",
-            )
-    data = payload.model_dump()
-    data["customer_name"] = customer.name
-    data["customer_phone"] = customer.phone
-    record = Appointment(**data)
+        _get_or_404(db, TreatmentPlan, payload.treatment_plan_id)
+    record = Appointment(**payload.model_dump())
     db.add(record)
     db.commit()
     db.refresh(record)
@@ -295,21 +225,7 @@ def create_appointment(db: Session, payload: AppointmentCreate) -> Appointment:
 
 def update_appointment(db: Session, appointment_id: int, payload: AppointmentUpdate) -> Appointment:
     record = _get_or_404(db, Appointment, appointment_id)
-    old_status = record.status
     _apply_updates(record, payload)
-    if payload.customer_id:
-        customer = _get_or_404(db, Customer, payload.customer_id)
-        record.customer_name = customer.name
-        record.customer_phone = customer.phone
-    if payload.treatment_plan_id:
-        plan = _get_or_404(db, TreatmentPlan, payload.treatment_plan_id)
-        if plan.customer_id != record.customer_id:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="疗程卡不属于该客户",
-            )
-    if old_status != "completed" and record.status == "completed" and record.treatment_plan_id:
-        consume_treatment_session(db, record.treatment_plan_id)
     db.commit()
     db.refresh(record)
     return record
@@ -351,21 +267,6 @@ def seed_demo_data(db: Session) -> None:
     if db.scalar(select(ServiceItem.id).limit(1)):
         return
 
-    customer1 = Customer(
-        name="林女士",
-        phone="13800000001",
-        email="lin@example.com",
-        gender="女",
-        notes="偏干肌，注意补水。",
-    )
-    customer2 = Customer(
-        name="王小姐",
-        phone="13800000002",
-        email="wang@example.com",
-        gender="女",
-        notes="敏感肌。",
-    )
-
     hydrate = ServiceItem(
         name="水光补水护理",
         category="面部护理",
@@ -398,7 +299,6 @@ def seed_demo_data(db: Session) -> None:
         ],
     )
     plan = TreatmentPlan(
-        customer=customer1,
         customer_name="林女士",
         customer_phone="13800000001",
         package=package,
@@ -407,7 +307,6 @@ def seed_demo_data(db: Session) -> None:
         expires_at=datetime.utcnow() + timedelta(days=10),
     )
     appointment = Appointment(
-        customer=customer1,
         customer_name="林女士",
         customer_phone="13800000001",
         service_item=hydrate,
@@ -417,5 +316,5 @@ def seed_demo_data(db: Session) -> None:
         status="booked",
         notes="偏干肌，注意补水。",
     )
-    db.add_all([customer1, customer2, hydrate, repair, lift, package, plan, appointment])
+    db.add_all([hydrate, repair, lift, package, plan, appointment])
     db.commit()

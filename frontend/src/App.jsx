@@ -6,7 +6,6 @@ import {
   LayoutDashboard,
   Package,
   Sparkles,
-  Users,
 } from 'lucide-react'
 import { api } from './api/client'
 import { AppShell } from './components/AppShell'
@@ -16,12 +15,9 @@ import { PackagesPage } from './pages/PackagesPage'
 import { TreatmentPlansPage } from './pages/TreatmentPlansPage'
 import { AppointmentsPage } from './pages/AppointmentsPage'
 import { RemindersPage } from './pages/RemindersPage'
-import { CustomersPage } from './pages/CustomersPage'
-import { CustomerDetailPage } from './pages/CustomerDetailPage'
 
 const navItems = [
   { key: 'dashboard', label: '经营总览', icon: LayoutDashboard },
-  { key: 'customers', label: '客户档案', icon: Users },
   { key: 'services', label: '套餐项目', icon: Sparkles },
   { key: 'packages', label: '护理套餐', icon: Package },
   { key: 'plans', label: '疗程次数', icon: ClipboardList },
@@ -31,9 +27,7 @@ const navItems = [
 
 export default function App() {
   const [activeView, setActiveView] = useState('dashboard')
-  const [viewingCustomerId, setViewingCustomerId] = useState(null)
   const [data, setData] = useState({
-    customers: [],
     serviceItems: [],
     packages: [],
     treatmentPlans: [],
@@ -45,15 +39,14 @@ export default function App() {
 
   const refresh = async () => {
     setError('')
-    const [customers, serviceItems, packages, treatmentPlans, appointments, reminders] = await Promise.all([
-      api.listCustomers(),
+    const [serviceItems, packages, treatmentPlans, appointments, reminders] = await Promise.all([
       api.listServiceItems(),
       api.listPackages(),
       api.listTreatmentPlans(),
       api.listAppointments(),
       api.listReminders(30),
     ])
-    setData({ customers, serviceItems, packages, treatmentPlans, appointments, reminders })
+    setData({ serviceItems, packages, treatmentPlans, appointments, reminders })
   }
 
   useEffect(() => {
@@ -62,50 +55,22 @@ export default function App() {
       .finally(() => setLoading(false))
   }, [])
 
-  const handleViewCustomer = (customerId) => {
-    setViewingCustomerId(customerId)
-  }
+  const pageProps = useMemo(() => ({ data, refresh, setError }), [data])
 
-  const handleBackFromDetail = () => {
-    setViewingCustomerId(null)
-  }
-
-  const pageProps = useMemo(
-    () => ({ data, refresh, setError, onViewCustomer: handleViewCustomer }),
-    [data]
-  )
-
-  let content
-
-  if (viewingCustomerId) {
-    content = (
-      <CustomerDetailPage
-        customerId={viewingCustomerId}
-        onBack={handleBackFromDetail}
-        setError={setError}
-        refresh={refresh}
-      />
-    )
-  } else {
-    content = {
-      dashboard: <Dashboard data={data} />,
-      customers: <CustomersPage {...pageProps} onViewDetail={handleViewCustomer} />,
-      services: <ServiceItemsPage {...pageProps} />,
-      packages: <PackagesPage {...pageProps} />,
-      plans: <TreatmentPlansPage {...pageProps} />,
-      appointments: <AppointmentsPage {...pageProps} />,
-      reminders: <RemindersPage data={data} refresh={refresh} />,
-    }[activeView]
-  }
+  const content = {
+    dashboard: <Dashboard data={data} />,
+    services: <ServiceItemsPage {...pageProps} />,
+    packages: <PackagesPage {...pageProps} />,
+    plans: <TreatmentPlansPage {...pageProps} />,
+    appointments: <AppointmentsPage {...pageProps} />,
+    reminders: <RemindersPage data={data} refresh={refresh} />,
+  }[activeView]
 
   return (
     <AppShell
       navItems={navItems}
       activeView={activeView}
-      onNavigate={(key) => {
-        setActiveView(key)
-        setViewingCustomerId(null)
-      }}
+      onNavigate={setActiveView}
       loading={loading}
       error={error}
     >

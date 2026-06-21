@@ -6,23 +6,6 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.database import Base
 
 
-class Customer(Base):
-    __tablename__ = "customers"
-
-    id: Mapped[int] = mapped_column(primary_key=True, index=True)
-    name: Mapped[str] = mapped_column(String(120), index=True)
-    phone: Mapped[str] = mapped_column(String(30), unique=True, index=True)
-    email: Mapped[str] = mapped_column(String(120), default="")
-    gender: Mapped[str] = mapped_column(String(20), default="")
-    birthday: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
-    address: Mapped[str] = mapped_column(Text, default="")
-    notes: Mapped[str] = mapped_column(Text, default="")
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-
-    treatment_plans: Mapped[list["TreatmentPlan"]] = relationship(back_populates="customer")
-    appointments: Mapped[list["Appointment"]] = relationship(back_populates="customer")
-
-
 class ServiceItem(Base):
     __tablename__ = "service_items"
 
@@ -45,6 +28,7 @@ class CarePackage(Base):
     price: Mapped[float] = mapped_column(Float, default=0)
     validity_days: Mapped[int] = mapped_column(Integer, default=90)
     description: Mapped[str] = mapped_column(Text, default="")
+    status: Mapped[str] = mapped_column(String(30), default="active")
 
     items: Mapped[list["PackageItem"]] = relationship(
         back_populates="package",
@@ -69,7 +53,6 @@ class TreatmentPlan(Base):
     __tablename__ = "treatment_plans"
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
-    customer_id: Mapped[int] = mapped_column(ForeignKey("customers.id"))
     customer_name: Mapped[str] = mapped_column(String(120), index=True)
     customer_phone: Mapped[str] = mapped_column(String(30), default="")
     package_id: Mapped[int] = mapped_column(ForeignKey("care_packages.id"))
@@ -79,7 +62,6 @@ class TreatmentPlan(Base):
     expires_at: Mapped[datetime] = mapped_column(DateTime, index=True)
     status: Mapped[str] = mapped_column(String(30), default="active")
 
-    customer: Mapped[Customer] = relationship(back_populates="treatment_plans")
     package: Mapped[CarePackage] = relationship(back_populates="treatment_plans")
     appointments: Mapped[list["Appointment"]] = relationship(back_populates="treatment_plan")
 
@@ -88,7 +70,6 @@ class Appointment(Base):
     __tablename__ = "appointments"
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
-    customer_id: Mapped[int] = mapped_column(ForeignKey("customers.id"))
     customer_name: Mapped[str] = mapped_column(String(120), index=True)
     customer_phone: Mapped[str] = mapped_column(String(30), default="")
     service_item_id: Mapped[int] = mapped_column(ForeignKey("service_items.id"))
@@ -98,6 +79,5 @@ class Appointment(Base):
     status: Mapped[str] = mapped_column(String(30), default="booked")
     notes: Mapped[str] = mapped_column(Text, default="")
 
-    customer: Mapped[Customer] = relationship(back_populates="appointments")
     service_item: Mapped[ServiceItem] = relationship(back_populates="appointments")
     treatment_plan: Mapped[TreatmentPlan | None] = relationship(back_populates="appointments")

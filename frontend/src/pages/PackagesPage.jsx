@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Trash2 } from 'lucide-react'
 import { api } from '../api/client'
 import { SelectInput, SubmitButton, TextArea, TextInput } from '../components/Forms'
 import { SectionHeader } from '../components/SectionHeader'
@@ -38,6 +39,26 @@ export function PackagesPage({ data, refresh, setError }) {
     }
   }
 
+  const toggleStatus = async (pkg) => {
+    const newStatus = pkg.status === 'active' ? 'inactive' : 'active'
+    try {
+      await api.updatePackage(pkg.id, { status: newStatus })
+      await refresh()
+    } catch (err) {
+      setError(err.message)
+    }
+  }
+
+  const handleDelete = async (pkg) => {
+    if (!confirm(`确定删除套餐「${pkg.name}」？`)) return
+    try {
+      await api.deletePackage(pkg.id)
+      await refresh()
+    } catch (err) {
+      setError(err.message)
+    }
+  }
+
   return (
     <div className="page-stack">
       <SectionHeader title="护理套餐" description="组合项目、设置价格和有效期，形成可售卖护理套餐。" />
@@ -58,7 +79,7 @@ export function PackagesPage({ data, refresh, setError }) {
 
       <div className="data-grid">
         {data.packages.map((pkg) => (
-          <article className="data-card" key={pkg.id}>
+          <article className={`data-card${pkg.status === 'inactive' ? ' card-inactive' : ''}`} key={pkg.id}>
             <div className="card-row">
               <div>
                 <strong>{pkg.name}</strong>
@@ -71,6 +92,21 @@ export function PackagesPage({ data, refresh, setError }) {
               {pkg.items.map((item) => (
                 <span className="tag" key={item.id}>{item.service_item.name} x {item.included_sessions}</span>
               ))}
+              {pkg.status === 'inactive' && <span className="badge badge-warning">已停用</span>}
+              {pkg.has_purchases && <span className="badge badge-info">已购</span>}
+            </div>
+            <div className="card-actions">
+              <button
+                className={`secondary-button${pkg.status === 'inactive' ? ' button-activate' : ' button-deactivate'}`}
+                onClick={() => toggleStatus(pkg)}
+              >
+                {pkg.status === 'active' ? '停用' : '启用'}
+              </button>
+              {!pkg.has_purchases && (
+                <button className="icon-button" onClick={() => handleDelete(pkg)} title="删除套餐">
+                  <Trash2 size={15} />
+                </button>
+              )}
             </div>
           </article>
         ))}

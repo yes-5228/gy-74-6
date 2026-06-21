@@ -3,45 +3,6 @@ from datetime import datetime
 from pydantic import BaseModel, ConfigDict, Field
 
 
-class CustomerBase(BaseModel):
-    name: str = Field(min_length=1, max_length=120)
-    phone: str = Field(min_length=1, max_length=30)
-    email: str = ""
-    gender: str = ""
-    birthday: datetime | None = None
-    address: str = ""
-    notes: str = ""
-
-
-class CustomerCreate(CustomerBase):
-    pass
-
-
-class CustomerUpdate(BaseModel):
-    name: str | None = Field(default=None, min_length=1, max_length=120)
-    phone: str | None = Field(default=None, min_length=1, max_length=30)
-    email: str | None = None
-    gender: str | None = None
-    birthday: datetime | None = None
-    address: str | None = None
-    notes: str | None = None
-
-
-class CustomerRead(CustomerBase):
-    id: int
-    created_at: datetime
-
-    model_config = ConfigDict(from_attributes=True)
-
-
-class CustomerDetail(CustomerRead):
-    treatment_plans: list["TreatmentPlanRead"] = []
-    appointments: list["AppointmentRead"] = []
-    risk_level: str = "normal"
-    active_plans_count: int = 0
-    upcoming_appointments_count: int = 0
-
-
 class ServiceItemBase(BaseModel):
     name: str = Field(min_length=1, max_length=120)
     category: str = "护理"
@@ -87,6 +48,7 @@ class CarePackageBase(BaseModel):
     price: float = Field(default=0, ge=0)
     validity_days: int = Field(default=90, ge=1)
     description: str = ""
+    status: str = "active"
 
 
 class CarePackageCreate(CarePackageBase):
@@ -99,17 +61,18 @@ class CarePackageUpdate(BaseModel):
     validity_days: int | None = Field(default=None, ge=1)
     description: str | None = None
     items: list[PackageItemInput] | None = None
+    status: str | None = None
 
 
 class CarePackageRead(CarePackageBase):
     id: int
     items: list[PackageItemRead] = []
+    has_purchases: bool = False
 
     model_config = ConfigDict(from_attributes=True)
 
 
 class TreatmentPlanBase(BaseModel):
-    customer_id: int
     customer_name: str = Field(min_length=1, max_length=120)
     customer_phone: str = ""
     package_id: int
@@ -125,7 +88,6 @@ class TreatmentPlanCreate(TreatmentPlanBase):
 
 
 class TreatmentPlanUpdate(BaseModel):
-    customer_id: int | None = None
     customer_name: str | None = Field(default=None, min_length=1, max_length=120)
     customer_phone: str | None = None
     package_id: int | None = None
@@ -145,7 +107,6 @@ class TreatmentPlanRead(TreatmentPlanBase):
 
 
 class AppointmentBase(BaseModel):
-    customer_id: int
     customer_name: str = Field(min_length=1, max_length=120)
     customer_phone: str = ""
     service_item_id: int
@@ -161,7 +122,6 @@ class AppointmentCreate(AppointmentBase):
 
 
 class AppointmentUpdate(BaseModel):
-    customer_id: int | None = None
     customer_name: str | None = Field(default=None, min_length=1, max_length=120)
     customer_phone: str | None = None
     service_item_id: int | None = None

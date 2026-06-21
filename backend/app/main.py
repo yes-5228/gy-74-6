@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import appointments, customers, packages, reminders, service_items, treatment_plans
+from app.api import appointments, packages, reminders, service_items, treatment_plans
 from app.core.config import settings
 from app.core.database import Base, SessionLocal, engine
 from app.services.salon_service import seed_demo_data
@@ -40,7 +40,6 @@ def root():
     }
 
 
-app.include_router(customers.router, prefix="/api")
 app.include_router(service_items.router, prefix="/api")
 app.include_router(packages.router, prefix="/api")
 app.include_router(treatment_plans.router, prefix="/api")

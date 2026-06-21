@@ -158,6 +158,36 @@ h2 {
   color: #9f3126;
 }
 
+.badge-warning {
+  background: #fff3e0;
+  color: #b86f4b;
+}
+
+.badge-info {
+  background: #e3f2fd;
+  color: #1565c0;
+}
+
+.card-inactive {
+  opacity: 0.65;
+}
+
+.card-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.button-deactivate {
+  background: #fff3e0;
+  color: #b86f4b;
+}
+
+.button-activate {
+  background: #e7eee9;
+  color: #2e6655;
+}
+
 .spin {
   animation: spin 1s linear infinite;
 }
@@ -448,139 +478,6 @@ td small {
   }
 
   .field.wide {
-    grid-column: span 1;
-  }
-}
-
-.danger-button {
-  background: #ffe2df;
-  color: #9f3126;
-  padding: 0 12px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  border: 0;
-  border-radius: 8px;
-  min-height: 42px;
-}
-
-.back-button {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  background: transparent;
-  border: 1px solid #d9d2ca;
-  border-radius: 8px;
-  padding: 8px 12px;
-  color: #4d5758;
-  min-height: 42px;
-}
-
-.action-buttons {
-  display: flex;
-  gap: 6px;
-}
-
-.notes-cell {
-  max-width: 200px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.risk-high {
-  background: #ffe2df;
-  color: #9f3126;
-}
-
-.risk-medium {
-  background: #fff3e0;
-  color: #e65100;
-}
-
-.risk-normal {
-  background: #e7eee9;
-  color: #2e6655;
-}
-
-.form-actions {
-  grid-column: span 4;
-  display: flex;
-  gap: 10px;
-  align-items: center;
-}
-
-.customer-info {
-  display: grid;
-  gap: 8px;
-}
-
-.customer-info-row {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-
-.customer-info-label {
-  color: #687477;
-  min-width: 60px;
-}
-
-.section-title {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 12px;
-  font-size: 18px;
-  font-weight: 600;
-}
-
-.tabs {
-  display: flex;
-  gap: 4px;
-  border-bottom: 1px solid #e2ded8;
-  margin-bottom: 16px;
-}
-
-.tab-button {
-  background: transparent;
-  border: 0;
-  padding: 10px 16px;
-  color: #687477;
-  border-bottom: 2px solid transparent;
-  margin-bottom: -1px;
-  min-height: auto;
-}
-
-.tab-button.active {
-  color: #b86f4b;
-  border-bottom-color: #b86f4b;
-  font-weight: 500;
-}
-
-.customer-detail-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 16px;
-  margin-bottom: 20px;
-}
-
-.empty-text {
-  color: #687474;
-  text-align: center;
-  padding: 20px;
-}
-
-@media (max-width: 1050px) {
-  .form-actions {
-    grid-column: span 2;
-  }
-}
-
-@media (max-width: 680px) {
-  .form-actions {
     grid-column: span 1;
   }
 }

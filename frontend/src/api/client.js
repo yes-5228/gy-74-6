@@ -30,13 +30,6 @@ async function request(path, options = {}) {
 }
 
 export const api = {
-  listCustomers: () => request('/customers'),
-  createCustomer: (payload) => request('/customers', { method: 'POST', body: JSON.stringify(payload) }),
-  getCustomer: (id) => request(`/customers/${id}`),
-  getCustomerDetail: (id) => request(`/customers/${id}/detail`),
-  updateCustomer: (id, payload) => request(`/customers/${id}`, { method: 'PUT', body: JSON.stringify(payload) }),
-  deleteCustomer: (id) => request(`/customers/${id}`, { method: 'DELETE' }),
-
   listServiceItems: () => request('/service-items'),
   createServiceItem: (payload) => request('/service-items', { method: 'POST', body: JSON.stringify(payload) }),
   updateServiceItem: (id, payload) => request(`/service-items/${id}`, { method: 'PUT', body: JSON.stringify(payload) }),
